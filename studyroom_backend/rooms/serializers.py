@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import StudyRoom, RoomMember, StudySession, RoomActivity
+from .models import StudyRoom, RoomMember, StudySession, RoomActivity, RoomTask
 from accounts.serializers import UserSerializer
 
 User = get_user_model()
@@ -55,3 +55,12 @@ class RoomActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomActivity
         fields = ('id', 'room', 'user', 'action', 'timestamp')
+
+
+class RoomTaskSerializer(serializers.ModelSerializer):
+    created_by = UserSerializer(read_only=True)
+
+    class Meta:
+        model = RoomTask
+        fields = ('id', 'room', 'created_by', 'text', 'is_completed', 'created_at')
+        read_only_fields = ('id', 'room', 'created_by', 'created_at')

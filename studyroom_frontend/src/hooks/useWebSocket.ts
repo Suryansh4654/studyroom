@@ -21,7 +21,7 @@ export const useWebSocket = (
     const token = localStorage.getItem('access_token');
     if (!token) return;
 
-    // Smart Dynamic Host Detection to prevent localhost vs 127.0.0.1 mismatches
+    // detect correct host for WS connection
     let wsUrlBase = import.meta.env.VITE_WS_BASE_URL;
     if (!wsUrlBase || wsUrlBase === 'ws://localhost:8000/ws') {
       const isSecure = window.location.protocol === 'https:';

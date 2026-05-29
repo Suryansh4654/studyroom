@@ -57,7 +57,7 @@ const LandingPage: React.FC = () => {
           WebkitTextFillColor: 'transparent'
         }}>
           Collaborative Study Rooms <br />
-          Built For Medical Pioneers.
+          Built For Focused Learners.
         </h1>
         
         <p style={{
@@ -162,7 +162,7 @@ const LandingPage: React.FC = () => {
           </div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '10px' }}>Real-time Chat Logs</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5 }}>
-            Chat with colleagues in real-time via WebSockets with built-in Markdown rendering for sharing medical references.
+            Chat with colleagues in real-time via WebSockets with built-in Markdown rendering for sharing study references.
           </p>
         </div>
 

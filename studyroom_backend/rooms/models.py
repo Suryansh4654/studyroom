@@ -70,3 +70,19 @@ class RoomActivity(models.Model):
     def __str__(self):
         username = self.user.username if self.user else 'Unknown User'
         return f'{username} {self.action} in {self.room.name}'
+
+
+class RoomTask(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    room = models.ForeignKey(StudyRoom, on_delete=models.CASCADE, related_name='tasks')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_tasks')
+    text = models.CharField(max_length=255)
+    is_completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'rooms_roomtask'
+        ordering = ('created_at',)
+
+    def __str__(self):
+        return f'Task: {self.text} in {self.room.name}'

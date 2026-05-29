@@ -1,3 +1,7 @@
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from chat.consumers import to_json_compatible
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
@@ -6,8 +10,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 
-from .models import StudyRoom, RoomMember, StudySession, RoomActivity
-from .serializers import StudyRoomSerializer, RoomMemberSerializer, StudySessionSerializer, RoomActivitySerializer
+from .models import StudyRoom, RoomMember, StudySession, RoomActivity, RoomTask
+from .serializers import StudyRoomSerializer, RoomMemberSerializer, StudySessionSerializer, RoomActivitySerializer, RoomTaskSerializer
 
 class IsRoomMember(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -249,3 +253,71 @@ class RoomActivityListView(generics.ListAPIView):
     def get_queryset(self):
         room_id = self.kwargs.get('room_id')
         return RoomActivity.objects.filter(room_id=room_id).select_related('user').order_by('-timestamp')
+
+
+class RoomTaskListView(generics.ListCreateAPIView):
+    serializer_class = RoomTaskSerializer
+    permission_classes = (permissions.IsAuthenticated, IsRoomMember)
+
+    def get_queryset(self):
+        return RoomTask.objects.filter(room_id=self.kwargs['room_id']).order_by('created_at')
+
+    def perform_create(self, serializer):
+        room = get_object_or_404(StudyRoom, pk=self.kwargs['room_id'])
+        task = serializer.save(room=room, created_by=self.request.user)
+        
+        # WebSocket broadcast
+        channel_layer = get_channel_layer()
+        serialized_task = RoomTaskSerializer(task).data
+        json_task = to_json_compatible(serialized_task)
+        async_to_sync(channel_layer.group_send)(
+            f'room_{room.id}',
+            {
+                'type': 'task_update_broadcast',
+                'action': 'created',
+                'task': json_task
+            }
+        )
+
+class RoomTaskToggleView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsRoomMember)
+
+    def post(self, request, room_id, task_id, *args, **kwargs):
+        task = get_object_or_404(RoomTask, room_id=room_id, pk=task_id)
+        task.is_completed = not task.is_completed
+        task.save()
+
+        # WebSocket broadcast
+        channel_layer = get_channel_layer()
+        serialized_task = RoomTaskSerializer(task).data
+        json_task = to_json_compatible(serialized_task)
+        async_to_sync(channel_layer.group_send)(
+            f'room_{room_id}',
+            {
+                'type': 'task_update_broadcast',
+                'action': 'toggled',
+                'task_id': str(task.id),
+                'task': json_task
+            }
+        )
+        return Response(json_task, status=status.HTTP_200_OK)
+
+class RoomTaskDetailView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsRoomMember)
+
+    def delete(self, request, room_id, task_id, *args, **kwargs):
+        task = get_object_or_404(RoomTask, room_id=room_id, pk=task_id)
+        task_id_str = str(task.id)
+        task.delete()
+
+        # WebSocket broadcast
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'room_{room_id}',
+            {
+                'type': 'task_update_broadcast',
+                'action': 'deleted',
+                'task_id': task_id_str
+            }
+        )
+        return Response({'message': 'Task deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)

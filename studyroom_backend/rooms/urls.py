@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RoomViewSet, JoinRoomView, LeaveRoomView, RoomMembersListView,
     StudySessionStartView, StudySessionEndView, StudySessionListView,
-    RoomActivityListView
+    RoomActivityListView, RoomTaskListView, RoomTaskToggleView, RoomTaskDetailView
 )
 
 router = DefaultRouter()
@@ -17,5 +17,8 @@ urlpatterns = [
     path('<uuid:room_id>/sessions/end/', StudySessionEndView.as_view(), name='session_end'),
     path('<uuid:room_id>/sessions/', StudySessionListView.as_view(), name='session_list'),
     path('<uuid:room_id>/activity/', RoomActivityListView.as_view(), name='room_activity'),
+    path('<uuid:room_id>/tasks/', RoomTaskListView.as_view(), name='room_task_list'),
+    path('<uuid:room_id>/tasks/<uuid:task_id>/toggle/', RoomTaskToggleView.as_view(), name='room_task_toggle'),
+    path('<uuid:room_id>/tasks/<uuid:task_id>/', RoomTaskDetailView.as_view(), name='room_task_detail'),
     path('', include(router.urls)),
 ]

@@ -177,6 +177,14 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
             'online_users': event['online_users']
         })
 
+    async def task_update_broadcast(self, event):
+        await self.send_json({
+            'type': 'task.update',
+            'action': event['action'],
+            'task': event.get('task'),
+            'task_id': event.get('task_id')
+        })
+
     # --- Helper methods ---
 
     async def broadcast_online_users(self):

@@ -3,6 +3,11 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config
 import psycopg2
+try:
+    import dj_database_url
+    HAS_DJ_DATABASE_URL = True
+except ImportError:
+    HAS_DJ_DATABASE_URL = False
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -108,6 +113,14 @@ else:
         }
     }
 
+
+# Production DATABASE_URL override (Render/Railway)
+DATABASE_URL = config('DATABASE_URL', default=None)
+if DATABASE_URL and HAS_DJ_DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL)
+    }
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -135,6 +148,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

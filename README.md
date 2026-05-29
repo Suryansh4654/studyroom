@@ -1,66 +1,73 @@
-# SpatialPioneer — Collaborative Virtual Study Rooms
+# StudyRoom — Collaborative Virtual Study Rooms
 
-A state-of-the-art, premium full-stack web application designed for collaborative real-time study sessions. Users can establish study chambers, invite peers using unique 8-character codes, start/end study sessions with synced live stopwatch and Pomodoro timers, text in real-time, and view persistent activity logs.
+Hey! This is my full-stack web app for real-time collaborative study sessions. I built it because during my semester exams, me and my friends always struggled to stay productive studying alone at home. We'd end up on our phones or just procrastinating. I thought — what if there was a way to recreate that "library atmosphere" online? Where you can see your friends studying alongside you, chat when you're stuck, and actually track how much time you put in.
+
+That's basically what StudyRoom does. You create a virtual study room (I started calling them "chambers" because it sounded cooler lol), share an invite code with your friends, and then everyone can join and study together with synced timers and live chat.
 
 ---
 
-## 🌟 Tech Stack
+## Tech Stack
 
-| Layer | Technology |
+| Layer | What I Used |
 |---|---|
-| **Frontend** | React (Vite, TypeScript, Vanilla CSS Modules) |
-| **Backend** | Django + Django REST Framework (DRF) |
-| **Real-time** | Django Channels (ASGI) + WebSockets |
-| **Database** | PostgreSQL (with automatic SQLite fallback for local evaluation) |
-| **Server Integration** | Daphne + ASGI Protocol Routers |
-| **Authentication** | JSON Web Tokens (via `djangorestframework-simplejwt`) |
+| **Frontend** | React + TypeScript, built with Vite |
+| **Backend** | Django + Django REST Framework |
+| **Real-time** | Django Channels (WebSockets) |
+| **Database** | PostgreSQL (auto falls back to SQLite if Postgres isn't installed) |
+| **Auth** | JWT tokens using SimpleJWT |
+| **Server** | Daphne (ASGI server for handling WebSockets) |
+
+I went with Django Channels instead of something like Socket.IO because I wanted everything in one backend — REST APIs and WebSockets running on the same server. It was definitely harder to set up but it keeps the architecture clean.
 
 ---
 
-## ✨ Features Implemented
+## Features
 
-1. **Authentication & User Profiles:**
-   - Secure registration, JWT-based login (access + refresh tokens), and self profile fetch (`/api/auth/me/`).
-   - Token lifecycle auto-refresh via customized Axios interceptors.
-2. **Interactive Room Management:**
-   - Create study chambers with automatic unique 8-character invite code generation.
-   - Join existing chambers via invite code and easily leave rooms.
-   - Creator is automatically registered as the room `owner` while others join as `member`.
-3. **Precision Synchronized Study Sessions:**
-   - Start and end sessions dynamically.
-   - Auto-calculate and persist study session durations in seconds.
-   - Enforce a strict one-active-session-per-room model constraint.
-4. **Real-time WebSockets Sync:**
-   - Group-based Channel layers syncing all active rooms.
-   - Real-time online/offline member indicators with dynamic participant list updates.
-   - Instant WebSocket chat messages with persistent database logging.
-5. **Audit Activity Log:**
-   - Persistent audit tracking for room entries, exits, session start, and session end.
-   - Signal-based automatic event logging.
-6. **Robust Cleanup Engine:**
-   - A custom Django management command (`cleanup_old_sessions`) to detect and auto-close dangling sessions older than 12 hours.
+### The Main Stuff
+- **Sign up / Login** — JWT-based auth with automatic token refresh (so you don't get randomly logged out)
+- **Create rooms** — Each room gets a unique 8-character invite code that you can share
+- **Study sessions** — Start a timer that syncs across all members in the room. When anyone starts or stops, everyone sees it
+- **Live chat** — Messages show up instantly via WebSockets. I also added basic markdown support (bold, italics, code blocks)
+- **Shared task list** — Add study tasks, check them off together. Great for splitting up topics in a group study
+- **Activity log** — Keeps track of who joined, who left, who started/ended sessions
+- **Room admin** — The room creator can promote members to owner, kick people, and change settings like the daily study target
+
+### Extra Stuff I Added
+- **Pomodoro mode** — 25 min study / 5 min break timer with automatic transitions
+- **Audio chimes** — I used the Web Audio API to generate notification sounds directly in the browser (no mp3 files needed). This was fun to figure out
+- **Daily study target** — Set how many hours you want to study per day and see your progress as a visual bar
+- **Online indicators** — Green dots next to people who are currently in the room
 
 ---
 
-## 💎 Premium Enhancements (Bonus Points)
+## Bugs I Ran Into (and how I fixed them)
 
-- **Pomodoro Mode:** Structured study timer with automatic 25-minute work and 5-minute break countdown intervals.
-- **Synthesized Retro Audio Chimes:** Utilizes the HTML5 Web Audio API to synthesize beautiful sound chimes for session starts, ends, and breaks, ensuring zero-dependency, local audio notifications.
-- **Markdown Chat Support:** Renders bold (`**text**`), italics (`*text*`), and monospace code blocks (`` `code` ``) inside real-time chat fragments.
-- **Dashboard Stats Panel:** Displays dynamic counters for total chambers joined, active peers, and active live sessions.
-- **Database Fallback:** A smart connection test in `settings.py` checks for local PostgreSQL availability. If unreachable, it gracefully boots using SQLite, making local evaluation effortless!
+### 1. WebSocket connections failing with localhost vs 127.0.0.1
+This one was really annoying. The frontend would connect to `ws://localhost:8000/ws` but sometimes the browser resolves localhost to `127.0.0.1`. Django Channels treated these as different hosts and would reject the connection. I had to write a dynamic host detection in the WebSocket hook that reads `window.location.hostname` and builds the WebSocket URL from that instead of hardcoding it.
+
+### 2. UUID serialization crashing the WebSocket consumer
+When broadcasting messages through Django Channels, the consumer would randomly crash with a "Object of type UUID is not JSON serializable" error. Turns out Django's UUIDs don't serialize to JSON by default. I had to write a `to_json_compatible()` helper function that recursively converts all UUIDs and datetime objects to strings before sending them through the channel layer.
+
+### 3. The database fallback for local development
+I wanted the app to use PostgreSQL in production but not force everyone to install Postgres just to test it locally. So I wrote a smart check in `settings.py` that tries to connect to Postgres with a 1-second timeout — if it fails, it silently falls back to SQLite. Took a few tries to get the timeout right because the default psycopg2 timeout was too long.
+
+### 4. Session timer drift across browser tabs
+When two people were in the same room and one started a session, the timers would slowly drift apart because each browser was running its own `setInterval`. I fixed this by having the timer calculate elapsed time from the original `start_time` timestamp rather than just incrementing a counter every second. This way even if a tab goes to sleep briefly, it catches up.
+
+### 5. WebSocket not reconnecting after phone goes to sleep
+On mobile, when the phone screen locks and unlocks, the WebSocket connection would die silently — no error, no close event, nothing. I added a reconnection mechanism in the `useWebSocket` hook that automatically retries every 3 seconds when the connection drops, with proper cleanup to avoid duplicate connections.
 
 ---
 
-## 🔧 Environment Variables
+## Environment Variables
 
 ### Backend (`studyroom_backend/.env`)
-```env
+```
 SECRET_KEY=your_django_secret_key
 DEBUG=True
 DATABASE_NAME=studyroom_db
 DATABASE_USER=postgres
-DATABASE_PASSWORD=your_db_password
+DATABASE_PASSWORD=your_password
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 ALLOWED_HOSTS=localhost,127.0.0.1
@@ -68,80 +75,80 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 ### Frontend (`studyroom_frontend/.env`)
-```env
+```
 VITE_API_BASE_URL=http://localhost:8000/api
 VITE_WS_BASE_URL=ws://localhost:8000/ws
 ```
 
 ---
 
-## ⚡ Setup & Launch Instructions
+## How to Run
 
 ### Prerequisites
-Ensure you have **Python 3.12+**, **Node.js 22+**, and **npm** installed.
+- Python 3.12+
+- Node.js 22+
 
-### 1. Backend Server Setup
-1. Open a terminal inside the project root.
-2. Initialize and activate a Python virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install django djangorestframework djangorestframework-simplejwt channels channels-redis psycopg2-binary django-cors-headers python-decouple daphne
-   ```
-4. Perform database migrations (auto-creates SQLite file if Postgres is unreachable):
-   ```bash
-   python studyroom_backend/manage.py makemigrations accounts rooms chat
-   python studyroom_backend/manage.py migrate
-   ```
-5. Run the ASGI server:
-   ```bash
-   python studyroom_backend/manage.py runserver 8000
-   ```
+### Backend
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r studyroom_backend/requirements.txt
+python studyroom_backend/manage.py migrate
+python studyroom_backend/manage.py runserver 8000
+```
 
-### 2. Frontend React Client Setup
-1. Open a new terminal inside `studyroom_frontend`.
-2. Install npm dependencies:
-   ```bash
-   npm install
-   ```
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-4. Access the workspace at `http://localhost:5173`.
+### Frontend
+```bash
+cd studyroom_frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` and you're good to go.
 
 ---
 
-## 📡 API Reference Overview
+## API Endpoints
 
-### Auth (`/api/auth/`)
-- `POST /register/` — Sign up a new user.
-- `POST /login/` — Authenticate and retrieve JWT access/refresh tokens.
-- `POST /token/refresh/` — Refresh an expired access token.
-- `GET /me/` — Retrieve the current authenticated user's profile.
+### Auth
+| Method | Endpoint | What it does |
+|---|---|---|
+| POST | `/api/auth/register/` | Create a new account |
+| POST | `/api/auth/login/` | Get JWT tokens |
+| POST | `/api/auth/token/refresh/` | Refresh expired token |
+| GET | `/api/auth/me/` | Get current user info |
 
-### Chambers (`/api/rooms/`)
-- `GET /` — List all chambers the current user is a member of.
-- `POST /` — Establish a new study room.
-- `GET /:id/` — Retrieve chamber details (members only).
-- `DELETE /:id/` — Delete room (owner only).
-- `POST /join/` — Join a room using an 8-character invite code.
-- `POST /:id/leave/` — Leave a study room.
-- `GET /:id/members/` — Retrieve list of chamber members.
+### Rooms
+| Method | Endpoint | What it does |
+|---|---|---|
+| GET | `/api/rooms/` | List your rooms |
+| POST | `/api/rooms/` | Create a room |
+| GET | `/api/rooms/:id/` | Room details |
+| POST | `/api/rooms/join/` | Join with invite code |
+| POST | `/api/rooms/:id/leave/` | Leave a room |
+| GET | `/api/rooms/:id/members/` | List members |
 
-### Sessions (`/api/rooms/:id/sessions/`)
-- `POST /start/` — Start a synchronized active study session.
-- `POST /end/` — End the active session and persist duration.
-- `GET /` — Fetch past study session intervals.
-
-### Chat & Audit Logs
-- `GET /api/rooms/:id/messages/` — Fetch the last 50 chat messages.
-- `GET /api/rooms/:id/activity/` — Fetch historical activity audit logs.
+### Sessions & Tasks
+| Method | Endpoint | What it does |
+|---|---|---|
+| POST | `/api/rooms/:id/sessions/start/` | Start studying |
+| POST | `/api/rooms/:id/sessions/end/` | Stop studying |
+| GET | `/api/rooms/:id/sessions/` | Past sessions |
+| GET/POST | `/api/rooms/:id/tasks/` | List/add tasks |
+| POST | `/api/rooms/:id/tasks/:tid/toggle/` | Check/uncheck task |
+| DELETE | `/api/rooms/:id/tasks/:tid/` | Delete task |
 
 ---
 
-## ⚓ Known Limitations
-- The development ASGI `CHANNEL_LAYERS` is configured to use the `InMemoryChannelLayer`. In production deployment, replace this with `channels_redis.core.RedisChannelLayer` by updating `settings.py` with your Redis server credentials.
+## What I'd Do With More Time
+
+- Use Redis instead of InMemoryChannelLayer (needed for multiple server instances)
+- Add file/image sharing in chat
+- Better mobile responsiveness
+- Email verification on signup
+- Rate limiting on the API
+- Dark/light theme toggle
+
+---
+
+Built by Suryansh Pandey

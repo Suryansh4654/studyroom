@@ -7,7 +7,7 @@ import { useTimer } from '../hooks/useTimer';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, Copy, Check, Users, Clock, Send, Scroll, Play, Square, Loader2,
-  MessageSquare, Flame, AlertCircle, Award, Sparkles, Settings, Crown, UserMinus
+  MessageSquare, Flame, AlertCircle, Award, Sparkles, Settings, Crown, UserMinus, CheckSquare, Trash
 } from 'lucide-react';
 
 interface User {
@@ -81,6 +81,9 @@ const StudyRoomPage: React.FC = () => {
   const [isActivityOpen, setIsActivityOpen] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [activeLeftTab, setActiveLeftTab] = useState<'peers' | 'tasks'>('peers');
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [newTaskText, setNewTaskText] = useState('');
   
   // Audio synthesizer chime helper
   const playChime = useCallback((type: 'start' | 'end' | 'break') => {
@@ -158,6 +161,8 @@ const StudyRoomPage: React.FC = () => {
       setActivities(actRes.data);
 
       // 5. Fetch completed Sessions (to compute total seconds)
+      const tasksRes = await axiosInstance.get(`/rooms/${id}/tasks/`);
+      setTasks(tasksRes.data);
       const sessionsRes = await axiosInstance.get(`/rooms/${id}/sessions/`);
       const total = sessionsRes.data.reduce((acc: number, curr: any) => acc + (curr.duration_seconds || 0), 0);
       setTotalStudySeconds(total);
@@ -175,6 +180,34 @@ const StudyRoomPage: React.FC = () => {
     fetchRoomData();
   }, [fetchRoomData]);
 
+  // Task Actions
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskText.trim()) return;
+    try {
+      await axiosInstance.post(`/rooms/${id}/tasks/`, { text: newTaskText });
+      setNewTaskText('');
+    } catch (err) {
+      console.error("Failed to add task:", err);
+    }
+  };
+
+  const handleToggleTask = async (taskId: string) => {
+    try {
+      await axiosInstance.post(`/rooms/${id}/tasks/${taskId}/toggle/`);
+    } catch (err) {
+      console.error("Failed to toggle task:", err);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await axiosInstance.delete(`/rooms/${id}/tasks/${taskId}/`);
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+    }
+  };
+
   // WebSocket Message dispatcher
   const handleWebSocketMessage = useCallback((msg: WebSocketMessage) => {
     if (msg.type === 'chat.message') {
@@ -189,6 +222,14 @@ const StudyRoomPage: React.FC = () => {
       }
     } else if (msg.type === 'user.status') {
       setOnlineUsernames(msg.online_users);
+    } else if (msg.type === 'task.update') {
+      if (msg.action === 'created') {
+        setTasks((prev) => [...prev, msg.task]);
+      } else if (msg.action === 'toggled') {
+        setTasks((prev) => prev.map(t => t.id === msg.task_id ? msg.task : t));
+      } else if (msg.action === 'deleted') {
+        setTasks((prev) => prev.filter(t => t.id !== msg.task_id));
+      }
     } else if (msg.type === 'activity.update') {
       setActivities((prev) => [msg.activity, ...prev]);
     }
@@ -478,7 +519,7 @@ const StudyRoomPage: React.FC = () => {
               </div>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', paddingLeft: '32px' }}>
-              {room.description || 'Virtual study room for medical pioneers.'}
+              {room.description || 'A cozy virtual study room for focused learners.'}
             </p>
           </div>
 
@@ -706,119 +747,266 @@ const StudyRoomPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Peers Directory Panel */}
+            {/* Bottom Left Panel: Peers & Shared Tasks */}
             <div className="glass-panel" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '10px' }}>
-                <Users size={18} color="var(--accent-blue)" />
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase' }}>
-                  Peers Directory ({onlineUsernames.length} online)
-                </span>
+              {/* Tab Headers */}
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '10px' }}>
+                <button
+                  onClick={() => setActiveLeftTab('peers')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: activeLeftTab === 'peers' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    padding: '2px 6px',
+                    borderBottom: activeLeftTab === 'peers' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Users size={16} />
+                  <span>Peers ({onlineUsernames.length})</span>
+                </button>
+                <button
+                  onClick={() => setActiveLeftTab('tasks')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: activeLeftTab === 'tasks' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    padding: '2px 6px',
+                    borderBottom: activeLeftTab === 'tasks' ? '2px solid var(--accent-purple)' : '2px solid transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <CheckSquare size={16} />
+                  <span>Tasks ({tasks.filter(t => !t.is_completed).length})</span>
+                </button>
               </div>
 
-              {/* Members List Container */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {members.map((member) => {
-                  const isOnline = onlineUsernames.includes(member.user.username);
-                  const isMemberOwner = member.role === 'owner';
-                  
-                  return (
-                    <div key={member.id} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      background: isOnline ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
-                      border: isOnline ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid transparent'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {/* Initials Avatar */}
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: isOnline 
-                            ? 'linear-gradient(135deg, var(--accent-purple), var(--accent-blue))' 
-                            : 'var(--bg-surface-elevated)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.85rem',
-                          fontWeight: 700,
-                          color: '#fff'
-                        }}>
-                          {member.user.username.slice(0, 2).toUpperCase()}
+              {/* Active Tab Panel */}
+              {activeLeftTab === 'peers' ? (
+                /* Members List Container */
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {members.map((member) => {
+                    const isOnline = onlineUsernames.includes(member.user.username);
+                    const isMemberOwner = member.role === 'owner';
+                    
+                    return (
+                      <div key={member.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        background: isOnline ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                        border: isOnline ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid transparent'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {/* Initials Avatar */}
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: isOnline 
+                              ? 'linear-gradient(135deg, var(--accent-purple), var(--accent-blue))' 
+                              : 'var(--bg-surface-elevated)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            color: '#fff'
+                          }}>
+                            {member.user.username.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ 
+                                fontSize: '0.85rem', 
+                                fontWeight: 700, 
+                                color: isOnline ? 'var(--text-primary)' : 'var(--text-secondary)'
+                              }}>
+                                {member.user.username}
+                              </span>
+                              {isMemberOwner && <Crown size={12} color="var(--accent-purple)" />}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {member.role === 'owner' ? 'Chamber Host' : 'Study Buddy'}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>{member.user.username}</span>
-                            {isMemberOwner && (
-                              <span style={{
-                                fontSize: '0.65rem',
-                                color: 'var(--color-warning)',
-                                background: 'rgba(234, 179, 8, 0.08)',
-                                border: '1px solid rgba(234, 179, 8, 0.2)',
-                                padding: '1px 4px',
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {/* Host controls */}
+                          {isOwner && member.user.username !== currentUser?.username && (
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => handlePromoteMember(member.id, member.user.username)}
+                                title="Promote to Host"
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: 'var(--accent-purple)',
+                                  padding: '4px'
+                                }}
+                              >
+                                <Award size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleKickMember(member.id, member.user.username)}
+                                title="Kick member from chamber"
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: 'var(--color-danger)',
+                                  padding: '4px'
+                                }}
+                              >
+                                <UserMinus size={14} />
+                              </button>
+                            </div>
+                          )}
+
+                          <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: isOnline ? 'var(--color-success)' : 'transparent',
+                            border: isOnline ? 'none' : '1px solid var(--text-muted)'
+                          }} />
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Shared Tasks Container */
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                  {/* Task input form */}
+                  <form onSubmit={handleAddTask} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <input
+                      type="text"
+                      placeholder="Add a chamber study task..."
+                      value={newTaskText}
+                      onChange={(e) => setNewTaskText(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(0, 0, 0, 0.2)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        outline: 'none'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'var(--accent-purple)',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s ease'
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+                      onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+                    >
+                      Add
+                    </button>
+                  </form>
+
+                  {/* Tasks List */}
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {tasks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No active chamber tasks. Add one to co-work!
+                      </div>
+                    ) : (
+                      tasks.map((task) => (
+                        <div
+                          key={task.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid rgba(255, 255, 255, 0.04)',
+                            opacity: task.is_completed ? 0.6 : 1,
+                            transition: 'opacity 0.2s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={task.is_completed}
+                              onChange={() => handleToggleTask(task.id)}
+                              style={{
+                                width: '16px',
+                                height: '16px',
                                 borderRadius: '4px',
-                                fontWeight: 700
-                              }}>OWNER</span>
-                            )}
+                                cursor: 'pointer',
+                                accentColor: 'var(--accent-purple)'
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: '0.85rem',
+                                color: 'var(--text-primary)',
+                                textDecoration: task.is_completed ? 'line-through' : 'none',
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              {task.text}
+                            </span>
                           </div>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            Joined {new Date(member.joined_at).toLocaleDateString()}
-                          </span>
+                          <button
+                            onClick={() => handleDeleteTask(task.id)}
+                            title="Delete task"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--text-muted)',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'color 0.2s ease'
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-danger)')}
+                            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                          >
+                            <Trash size={14} />
+                          </button>
                         </div>
-                      </div>
-
-                      {/* Online/Offline and Owner Control Buttons */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {/* If current user is owner, show promote and kick controls */}
-                        {isOwner && !isMemberOwner && (
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                              onClick={() => handlePromoteMember(member.id, member.user.username)}
-                              title="Shift Ownership to this member"
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--color-warning)',
-                                padding: '4px'
-                              }}
-                            >
-                              <Crown size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleKickMember(member.id, member.user.username)}
-                              title="Kick member from chamber"
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--color-danger)',
-                                padding: '4px'
-                              }}
-                            >
-                              <UserMinus size={14} />
-                            </button>
-                          </div>
-                        )}
-
-                        <div style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: isOnline ? 'var(--color-success)' : 'transparent',
-                          border: isOnline ? 'none' : '1px solid var(--text-muted)'
-                        }} />
-                      </div>
-
-                    </div>
-                  );
-                })}
-              </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
           </div>
 
           {/* Right Column: Chat Panel */}
