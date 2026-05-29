@@ -62,7 +62,15 @@ export const useWebSocket = (
 
     // detect correct host for WS connection
     let wsUrlBase = import.meta.env.VITE_WS_BASE_URL;
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    let apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+
+    // Automatically correct common environment typos (e.g. '.onrender.ws' instead of '.onrender.com')
+    if (wsUrlBase && wsUrlBase.includes('.onrender.ws')) {
+      wsUrlBase = wsUrlBase.replace('.onrender.ws', '.onrender.com');
+    }
+    if (apiBaseUrl && apiBaseUrl.includes('.onrender.ws')) {
+      apiBaseUrl = apiBaseUrl.replace('.onrender.ws', '.onrender.com');
+    }
 
     // Check if the configured WS url is default, missing, or localhost
     const isLocalhostWs = !wsUrlBase || wsUrlBase === 'ws://localhost:8000/ws' || wsUrlBase.includes('localhost') || wsUrlBase.includes('127.0.0.1');
