@@ -17,6 +17,7 @@ interface StudyRoom {
     started_by: string;
     start_time: string;
   } | null;
+  member_usernames?: string[];
 }
 
 const DashboardPage: React.FC = () => {
@@ -161,7 +162,7 @@ const DashboardPage: React.FC = () => {
           </div>
           <div>
             <div style={{ fontSize: '1.8rem', fontWeight: 800 }}>
-              {rooms.reduce((acc, curr) => acc + curr.members_count, 0)}
+              {(() => { const uniquePeers = new Set<string>(); rooms.forEach(r => { if (r.member_usernames) { r.member_usernames.forEach(username => { uniquePeers.add(username); }); } }); return uniquePeers.size; })()}
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Active Peers</div>
           </div>

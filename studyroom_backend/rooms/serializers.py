@@ -10,11 +10,15 @@ class StudyRoomSerializer(serializers.ModelSerializer):
     members_count = serializers.SerializerMethodField()
     last_session_date = serializers.SerializerMethodField()
     active_session = serializers.SerializerMethodField()
+    member_usernames = serializers.SerializerMethodField()
 
     class Meta:
         model = StudyRoom
-        fields = ('id', 'name', 'description', 'created_by', 'invite_code', 'is_active', 'created_at', 'members_count', 'last_session_date', 'active_session', 'daily_target_hours')
+        fields = ('id', 'name', 'description', 'created_by', 'invite_code', 'is_active', 'created_at', 'members_count', 'last_session_date', 'active_session', 'daily_target_hours', 'member_usernames')
         read_only_fields = ('id', 'invite_code', 'is_active', 'created_at', 'created_by')
+
+    def get_member_usernames(self, obj):
+        return list(obj.members.values_list('user__username', flat=True))
 
     def get_members_count(self, obj):
         return obj.members.count()
