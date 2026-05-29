@@ -1,3 +1,4 @@
+# IDE / IDE metadata directories
 *.iml
 .gradle
 /local.properties
@@ -7,6 +8,31 @@ build/
 /captures
 .externalNativeBuild
 .cxx
+
+# iOS/macOS metadata
 iosApp/iosApp.xcworkspace/*
 iosApp/iosApp.xcodeproj/*
 !iosApp/iosApp.xcodeproj/project.pbxproj
+
+# Python virtual environment
+venv/
+ENV/
+env/
+.venv/
+
+# Python compiled / cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Local database files
+*.sqlite3
+db.sqlite3
+
+# Environment configurations (containing sensitive credentials)
+.env
+.env.*
+!.env.example
