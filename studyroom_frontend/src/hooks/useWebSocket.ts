@@ -72,6 +72,18 @@ export const useWebSocket = (
       apiBaseUrl = apiBaseUrl.replace('.onrender.ws', '.onrender.com');
     }
 
+    // Ensure wsUrlBase is not empty and has a protocol
+    if (wsUrlBase) {
+      if (!wsUrlBase.startsWith('ws:') && !wsUrlBase.startsWith('wss:')) {
+        const isSecure = window.location.protocol === 'https:';
+        wsUrlBase = (isSecure ? 'wss://' : 'ws://') + wsUrlBase;
+      }
+      // Ensure it ends with /ws path segment
+      if (!wsUrlBase.endsWith('/ws') && !wsUrlBase.endsWith('/ws/')) {
+        wsUrlBase = wsUrlBase.replace(/\/+$/, '') + '/ws';
+      }
+    }
+
     // Check if the configured WS url is default, missing, or localhost
     const isLocalhostWs = !wsUrlBase || wsUrlBase === 'ws://localhost:8000/ws' || wsUrlBase.includes('localhost') || wsUrlBase.includes('127.0.0.1');
 
