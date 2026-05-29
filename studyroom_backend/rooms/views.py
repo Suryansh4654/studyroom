@@ -97,10 +97,9 @@ class RoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='kick-member')
     def kick_member(self, request, pk=None):
         room = self.get_object()
-        # Enforce owner check (TEMPORARILY DISABLED FOR DIAGNOSTICS)
-        # if not RoomMember.objects.filter(room=room, user=request.user, role='owner').exists():
-        #     return Response({'error': 'Only the owner can kick members.'}, status=status.HTTP_403_FORBIDDEN)
-        pass
+        # Enforce owner check
+        if not RoomMember.objects.filter(room=room, user=request.user, role='owner').exists():
+            return Response({'error': 'Only the owner can kick members.'}, status=status.HTTP_403_FORBIDDEN)
         
         member_id = request.data.get('member_id')
         try:
@@ -127,6 +126,14 @@ class JoinRoomView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
+        # TEMPORARY BACKEND DATABASE CLEANUP HOOK
+        try:
+            from rooms.models import RoomMember
+            deleted_count, _ = RoomMember.objects.filter(user__username='testuser_diagnostics_456').delete()
+            print(f'[BACKEND CLEANUP] Deleted {deleted_count} RoomMember records for testuser_diagnostics_456')
+        except Exception as e:
+            print('[BACKEND CLEANUP ERROR] Failed to delete dummy member:', e)
+
         invite_code = request.data.get('invite_code')
         if not invite_code:
             return Response({'error': 'Invite code is required.'}, status=status.HTTP_400_BAD_REQUEST)
